@@ -273,7 +273,8 @@ func notify(r run.Runner, profile string, ok bool, msg string) {
 		shq(msg), shq(identity), status)
 	_, _ = r.Shell(cmd)
 	if !ok {
-		cmd = fmt.Sprintf("[ -x /shared/notify-failure.sh ] && ERROR_MESSAGE=%s PROFILE_NAME=%s sh /shared/notify-failure.sh coverage; :",
+		// A coverage finding is not a failed backup — title it as what it is.
+		cmd = fmt.Sprintf(`[ -x /shared/notify-failure.sh ] && NTFY_TITLE="Backup coverage: paths not covered on $(hostname)" ERROR_MESSAGE=%s PROFILE_NAME=%s sh /shared/notify-failure.sh coverage; :`,
 			shq(msg), shq(identity))
 		_, _ = r.Shell(cmd)
 	}
