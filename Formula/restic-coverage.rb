@@ -5,21 +5,21 @@
 class ResticCoverage < Formula
   desc "Audit that everything on disk is deliberately backed up, excluded, or ignored by a resticprofile setup"
   homepage "https://github.com/Miista/homebrew-restic-coverage"
-  version "0.1.0"
+  version "0.1.1"
   license "MIT"
 
   on_macos do
     if Hardware::CPU.intel?
-      url "https://github.com/Miista/homebrew-restic-coverage/releases/download/v0.1.0/restic-coverage_0.1.0_darwin_amd64.tar.gz"
-      sha256 "d01aa1c4f64b6fb597c8b6a12764fca913b84258d95f53a124368eb12dae08b8"
+      url "https://github.com/Miista/homebrew-restic-coverage/releases/download/v0.1.1/restic-coverage_0.1.1_darwin_amd64.tar.gz"
+      sha256 "54d9f4e3fcfb1e225e16ceb99725420469fd71e0a14bcad3c96e6f6c7601b021"
 
       define_method(:install) do
         bin.install "restic-coverage"
       end
     end
     if Hardware::CPU.arm?
-      url "https://github.com/Miista/homebrew-restic-coverage/releases/download/v0.1.0/restic-coverage_0.1.0_darwin_arm64.tar.gz"
-      sha256 "d8fe739d0665531cede6849b954cb6098c5d18e7b86cc478365874343e73f1c4"
+      url "https://github.com/Miista/homebrew-restic-coverage/releases/download/v0.1.1/restic-coverage_0.1.1_darwin_arm64.tar.gz"
+      sha256 "e184ce3b843d296818932c2b991fdacaf6f265dd0efd89f3eb8fa40944c52b14"
 
       define_method(:install) do
         bin.install "restic-coverage"
@@ -29,15 +29,15 @@ class ResticCoverage < Formula
 
   on_linux do
     if Hardware::CPU.intel? && Hardware::CPU.is_64_bit?
-      url "https://github.com/Miista/homebrew-restic-coverage/releases/download/v0.1.0/restic-coverage_0.1.0_linux_amd64.tar.gz"
-      sha256 "25255dc315f84345fa86dfa6b8cc2197afce31c3dd5ebdf0d4aec5f343405a99"
+      url "https://github.com/Miista/homebrew-restic-coverage/releases/download/v0.1.1/restic-coverage_0.1.1_linux_amd64.tar.gz"
+      sha256 "331a1174d0ba50557bd295ef10fd22c9cdd8e22eba411c2a04f9f3c94e6c5644"
       define_method(:install) do
         bin.install "restic-coverage"
       end
     end
     if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
-      url "https://github.com/Miista/homebrew-restic-coverage/releases/download/v0.1.0/restic-coverage_0.1.0_linux_arm64.tar.gz"
-      sha256 "a6f99d41e0c5626ed910d6fa16a5323dab48d915f298d15faf4d86f8455bc34d"
+      url "https://github.com/Miista/homebrew-restic-coverage/releases/download/v0.1.1/restic-coverage_0.1.1_linux_arm64.tar.gz"
+      sha256 "e88323ae0a71f1a5b01b030f30d8978086305939608f31f57573159689ae5395"
       define_method(:install) do
         bin.install "restic-coverage"
       end
