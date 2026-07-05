@@ -120,7 +120,7 @@ func TestCheckNotify(t *testing.T) {
 	for _, want := range []string{
 		"notify-status.sh coverage false",
 		"notify-failure.sh coverage",
-		"coverage audit (profile default)",             // alerts identify themselves
+		"coverage audit (profile default)",                               // alerts identify themselves
 		`NTFY_TITLE="Backup coverage: paths not covered on $(hostname)"`, // not titled "backup failed"
 	} {
 		if !strings.Contains(joined, want) {
