@@ -1,0 +1,56 @@
+version: 2
+
+project_name: restic-coverage
+
+builds:
+  - id: restic-coverage
+    main: .
+    binary: restic-coverage
+    env: [CGO_ENABLED=0] # static binary: also runs inside alpine containers
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X restic-coverage/internal/cli.Version={{.Version}}
+
+archives:
+  - id: default
+    ids: [restic-coverage]
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+
+nfpms:
+  - id: restic-coverage
+    ids: [restic-coverage]
+    package_name: restic-coverage
+    vendor: Miista
+    homepage: https://github.com/Miista/homebrew-restic-coverage
+    maintainer: Miista <noreply@users.noreply.github.com>
+    description: Audit that everything on disk is deliberately backed up, excluded, or ignored by a resticprofile setup
+    license: MIT
+    formats: [deb]
+    bindir: /usr/bin
+
+checksum:
+  name_template: checksums.txt
+
+brews:
+  - name: restic-coverage
+    repository:
+      owner: Miista
+      name: homebrew-restic-coverage
+      token: "{{ .Env.GITHUB_TOKEN }}"
+    directory: Formula
+    commit_author:
+      name: goreleaser-bot
+      email: bot@goreleaser.com
+    homepage: https://github.com/Miista/homebrew-restic-coverage
+    description: Audit that everything on disk is deliberately backed up, excluded, or ignored by a resticprofile setup
+    license: MIT
+    install: |
+      bin.install "restic-coverage"
+    test: |
+      assert_match "restic-coverage", shell_output("#{bin}/restic-coverage version")
