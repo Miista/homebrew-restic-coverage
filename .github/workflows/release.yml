@@ -40,20 +40,27 @@ jobs:
   # Miista/homebrew-splitdns — keep them in sync.
   apt-repo:
     needs: release
-    # Skips (instead of failing) while this repo lacks the signing/deploy
-    # secrets; the same job in the sibling repos publishes our .deb meanwhile.
-    if: always() && !cancelled() && !failure() && secrets.APT_GPG_PRIVATE_KEY != ''
+    if: always() && !cancelled() && !failure()
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    # Every step is gated on the signing key being present, so this job
+    # no-ops (instead of failing) while the repo lacks the signing/deploy
+    # secrets; the same job in the sibling repos publishes our .deb meanwhile.
+    # (secrets are not available in job-level `if`, hence the step gate.)
+    env:
+      HAVE_SECRETS: ${{ secrets.APT_GPG_PRIVATE_KEY != '' }}
     steps:
       - name: Install reprepro
+        if: env.HAVE_SECRETS == 'true'
         run: sudo apt-get update -q && sudo apt-get install -y -q reprepro
 
       - name: Import GPG signing key
+        if: env.HAVE_SECRETS == 'true'
         run: echo "${{ secrets.APT_GPG_PRIVATE_KEY }}" | gpg --batch --import
 
       - name: Download latest .debs from all repos
+        if: env.HAVE_SECRETS == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -62,6 +69,7 @@ jobs:
           gh release download --repo Miista/homebrew-restic-coverage --pattern '*.deb' --dir /tmp/debs
 
       - name: Build apt repository
+        if: env.HAVE_SECRETS == 'true'
         run: |
           set -euo pipefail
           mkdir -p site/conf
@@ -124,6 +132,7 @@ jobs:
           EOF
 
       - name: Deploy to Cloudflare Pages
+        if: env.HAVE_SECRETS == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
