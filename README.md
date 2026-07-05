@@ -114,7 +114,6 @@ no negation), so `caddy/data/*` as an exclude would silently drop a
 
 ```sh
 go test ./... -race -cover
-./deploy.sh [host ...]    # direct-to-fleet deploy for pre-release testing
 ```
 
 Releases are tagged (`vX.Y.Z`); GoReleaser publishes the GitHub release,
