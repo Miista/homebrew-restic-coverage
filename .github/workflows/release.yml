@@ -40,7 +40,9 @@ jobs:
   # Miista/homebrew-splitdns — keep them in sync.
   apt-repo:
     needs: release
-    if: always() && !cancelled() && !failure()
+    # Skips (instead of failing) while this repo lacks the signing/deploy
+    # secrets; the same job in the sibling repos publishes our .deb meanwhile.
+    if: always() && !cancelled() && !failure() && secrets.APT_GPG_PRIVATE_KEY != ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
