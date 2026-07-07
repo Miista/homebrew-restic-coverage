@@ -69,6 +69,65 @@ func TestDataFilesRootMapping(t *testing.T) {
 	}
 }
 
+func TestUntrackedFiles(t *testing.T) {
+	root := t.TempDir()
+	writeFiles(t, root,
+		"compose.yaml",      // tracked
+		"svc/config.toml",   // tracked
+		"svc/data/state.db", // untracked (data)
+		"svc/scratch.txt",   // untracked (not data-like, but still a candidate)
+		"README.md",         // tracked
+	)
+	tracked := map[string]struct{}{
+		"compose.yaml":    {},
+		"svc/config.toml": {},
+		"README.md":       {},
+	}
+	got, skipped, err := UntrackedFiles(Root(root), root, root, tracked)
+	if err != nil || skipped != 0 {
+		t.Fatalf("err=%v skipped=%d", err, skipped)
+	}
+	want := []string{root + "/svc/data/state.db", root + "/svc/scratch.txt"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("UntrackedFiles = %v\nwant %v", got, want)
+	}
+}
+
+func TestUntrackedFilesRootMapping(t *testing.T) {
+	root := t.TempDir()
+	writeFiles(t, root, "svc/data/x", "svc/tracked.yaml")
+	tracked := map[string]struct{}{"svc/tracked.yaml": {}}
+	got, _, err := UntrackedFiles(Root(root), root, "/host/docker", tracked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"/host/docker/svc/data/x"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("UntrackedFiles = %v, want %v", got, want)
+	}
+}
+
+func TestTrackedDataLike(t *testing.T) {
+	tracked := map[string]struct{}{
+		"compose.yaml":            {}, // fine
+		"svc/config.toml":         {}, // fine
+		"svc/data/committed.json": {}, // data dir — flag
+		"secrets/prod.key":        {}, // loose *.key — flag
+		"data/top.txt":            {}, // top-level data dir — flag
+		"tunnel/credentials.json": {}, // loose credentials* — flag
+	}
+	got := TrackedDataLike(tracked)
+	want := []string{
+		"data/top.txt",
+		"secrets/prod.key",
+		"svc/data/committed.json",
+		"tunnel/credentials.json",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("TrackedDataLike = %v\nwant %v", got, want)
+	}
+}
+
 func TestDataFilesCountsUnreadable(t *testing.T) {
 	root := t.TempDir()
 	writeFiles(t, root, "svc/data/x", "locked/data/y")
