@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -165,6 +166,156 @@ func TestIgnoreRoundTrip(t *testing.T) {
 	out.Reset()
 	if code := Run(optArgs(o, "ignore", "*/newsvc/data/*", "again"), &out); code != 1 {
 		t.Errorf("duplicate ignore: exit %d, want 1 (%s)", code, out.String())
+	}
+}
+
+// setupGit builds a real git repo mirroring the homelab layout: config
+// files are committed, data lives under */data (gitignored + untracked), one
+// data file is backed up by the fake dry-run, one is ignored, and optionally
+// one is undecided. Returns options with --mode defaulting to auto.
+func setupGit(t *testing.T, withViolation, withCommittedData bool) (Options, *fakeRunner) {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not on PATH")
+	}
+	root := t.TempDir()
+	git := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = root
+		cmd.Env = append(os.Environ(),
+			"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t",
+			"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t",
+			"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	writeAt := func(p, content string) {
+		full := filepath.Join(root, p)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// tracked config
+	writeAt("compose.yaml", "config")
+	writeAt("svc/profiles.yaml", "config")
+	writeAt(".gitignore", "*/data/\n")
+	// untracked data
+	writeAt("svc/data/state.db", "backed up")
+	writeAt("legacy/data/old.db", "ignored")
+	if withViolation {
+		writeAt("newsvc/data/undecided.db", "violation")
+	}
+	git("init", "-q")
+	git("add", "compose.yaml", "svc/profiles.yaml", ".gitignore")
+	if withCommittedData {
+		writeAt("mistake/data/leaked.db", "committed by accident")
+		git("add", "-f", "mistake/data/leaked.db") // -f: overrides .gitignore
+	}
+	git("commit", "-q", "-m", "init")
+
+	ignoreFile := filepath.Join(root, "coverage-ignore")
+	if err := os.WriteFile(ignoreFile, []byte("*/legacy/data/* # superseded service\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f := &fakeRunner{hostRoot: root, included: []string{root + "/svc/data/state.db"}}
+	detect = func(explicit, fallback string) (run.Runner, error) { return f, nil }
+	t.Cleanup(func() { detect = run.Detect })
+	return Options{Profile: "default", HostRoot: root, ScanRoot: root, IgnoreFile: ignoreFile}, f
+}
+
+func TestGitModeClean(t *testing.T) {
+	o, _ := setupGit(t, false, false)
+	var out strings.Builder
+	if code := Run(optArgs(o, "check"), &out); code != 0 {
+		t.Fatalf("exit %d: %s", code, out.String())
+	}
+	got := out.String()
+	if !strings.Contains(got, "coverage OK") || !strings.Contains(got, "untracked path(s)") {
+		t.Errorf("expected clean untracked report, got %q", got)
+	}
+	if !strings.Contains(got, "baseline: git index") {
+		t.Errorf("expected git baseline line, got %q", got)
+	}
+}
+
+func TestGitModeViolation(t *testing.T) {
+	o, _ := setupGit(t, true, false)
+	var out strings.Builder
+	if code := Run(optArgs(o), &out); code != 1 {
+		t.Fatalf("exit %d, want 1: %s", code, out.String())
+	}
+	got := out.String()
+	if !strings.Contains(got, "newsvc/data/undecided.db") {
+		t.Errorf("violation missing from %q", got)
+	}
+	// tracked config and backed-up/ignored data must not appear as violations
+	violations := strings.Split(got, "\n")
+	for _, bad := range []string{"compose.yaml", "svc/profiles.yaml", "state.db", "legacy/data/old.db"} {
+		for _, line := range violations {
+			if strings.HasPrefix(line, o.HostRoot) && strings.Contains(line, bad) {
+				t.Errorf("%q leaked into violations: %q", bad, line)
+			}
+		}
+	}
+	if !strings.Contains(got, "commit to git") {
+		t.Errorf("git-mode fix hint missing: %q", got)
+	}
+}
+
+func TestGitModeAdvisesCommittedData(t *testing.T) {
+	o, _ := setupGit(t, false, true)
+	var out strings.Builder
+	if code := Run(optArgs(o, "check"), &out); code != 0 {
+		t.Fatalf("exit %d: %s", code, out.String())
+	}
+	got := out.String()
+	// a data file committed to git is exempt from violations but flagged
+	if strings.Contains(got, "path(s) on disk are neither") {
+		t.Errorf("committed data must not be a violation: %q", got)
+	}
+	if !strings.Contains(got, "look like data") || !strings.Contains(got, "mistake/data/leaked.db") {
+		t.Errorf("committed-data advisory missing: %q", got)
+	}
+}
+
+func TestGitModeForcedWithoutGitErrors(t *testing.T) {
+	o, _ := setup(t, false) // setup() builds a tree with NO .git
+	o.ScanRoot = o.HostRoot
+	var out strings.Builder
+	if code := Run(optArgs(o, "--mode", "git", "check"), &out); code != 1 {
+		t.Fatalf("exit %d, want 1: %s", code, out.String())
+	}
+	if !strings.Contains(out.String(), "--mode=data") {
+		t.Errorf("expected hint to use --mode=data, got %q", out.String())
+	}
+}
+
+func TestDataModeStillWorks(t *testing.T) {
+	// explicit data mode ignores any .git and uses the heuristic
+	o, _ := setupGit(t, true, false)
+	var out strings.Builder
+	if code := Run(optArgs(o, "--mode", "data"), &out); code != 1 {
+		t.Fatalf("exit %d, want 1: %s", code, out.String())
+	}
+	got := out.String()
+	if !strings.Contains(got, "data path(s)") || !strings.Contains(got, "undecided.db") {
+		t.Errorf("data-mode report wrong: %q", got)
+	}
+	if strings.Contains(got, "baseline: git") {
+		t.Errorf("data mode must not print git baseline: %q", got)
+	}
+}
+
+func TestInvalidMode(t *testing.T) {
+	o, _ := setup(t, false)
+	var out strings.Builder
+	if code := Run(optArgs(o, "--mode", "bogus", "check"), &out); code != 2 {
+		t.Fatalf("exit %d, want 2: %s", code, out.String())
 	}
 }
 

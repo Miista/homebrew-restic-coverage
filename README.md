@@ -1,10 +1,11 @@
 # restic-coverage
 
-Answers a question restic can't: **is there data on disk that nobody ever
+Answers a question restic can't: **is there anything on disk that nobody ever
 decided about?** Backup tools faithfully save what you configured — this
-audits everything you *didn't* configure. Every data-looking file must be
-either backed up, excluded by the profile, or listed in an ignore file with
-a written reason. Anything else fails the audit.
+audits everything you *didn't* configure. Every file must be accounted for:
+tracked in git (config, covered by the repo + its remote), backed up by
+restic, excluded by the profile, or listed in an ignore file with a written
+reason. Anything else fails the audit.
 
 Built for [resticprofile](https://github.com/creativeprojects/resticprofile)
 running in a Docker container.
@@ -27,11 +28,27 @@ sudo apt install restic-coverage
    reimplemented or guessed.
 2. Runs it with `--dry-run --verbose=2` to get the true would-be-included
    file list from restic itself.
-3. Scans the audited tree for data-like files (anything under a `*/data/`
-   dir, plus `*.db`, `*.sqlite*`, `credentials*`, `*.key`, `*.pem`).
-4. Diffs the two, then filters the remainder through the profile's
-   `--exclude` patterns and the `coverage-ignore` file.
+3. Builds the **candidate set** — the files that must be accounted for.
+   Two baselines (`--mode`, default `auto`):
+   - **git** (when the tree is a git repo): every file *not* in the git
+     index. Complete by construction — tracked files are config, covered by
+     the repo and its remote; everything else needs another decision. The
+     index is read directly from `.git/index`, no git binary required.
+   - **data** (fallback for trees not under git): the heuristic scan —
+     anything under a `*/data/` dir, plus `*.db`, `*.sqlite*`,
+     `credentials*`, `*.key`, `*.pem`.
+4. Diffs the candidates against the would-be-included set, then filters the
+   remainder through the profile's `--exclude` patterns and the
+   `coverage-ignore` file.
 5. Whatever is left is new, undecided data → nonzero exit, optional alert.
+
+In git mode the audit also *advises* (without failing) when a git-tracked
+file looks like data or a secret — committing such a file quietly exempts it
+from the audit, so it's worth a deliberate second look.
+
+> **Split/sparse/v4 indexes** are rejected rather than misread — a wrong
+> tracked set would silently corrupt the candidate set. Use `--mode=data`
+> to audit such a tree with the heuristic instead.
 
 The binary runs in two modes, detected automatically:
 
@@ -64,6 +81,7 @@ Flags, with environment fallbacks:
 | `--profile` | `COVERAGE_PROFILE` | profile holding the backup section | `default` |
 | `--scan-root` | `COVERAGE_SCAN_ROOT` | in-container mount of the audited tree | `/hostenv` |
 | `--host-root` | `COVERAGE_HOST_ROOT` | host path the tree corresponds to | derived from the first `/home/*/docker` source |
+| `--mode` | `COVERAGE_MODE` | candidate set: `git`, `data`, or `auto` | `auto` (git when the tree has a `.git`) |
 | `--ignore-file` | `COVERAGE_IGNORE_FILE` | exception file | `<host-root>/<box>/restic/coverage-ignore` (host mode), `/resticprofile/coverage-ignore` (container mode) |
 | `--notify` | `COVERAGE_NOTIFY=on` | push result to the notify hooks | off |
 
