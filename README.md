@@ -16,9 +16,13 @@ running in a Docker container.
 # Homebrew (macOS/Linux)
 brew install Miista/restic-coverage/restic-coverage
 
-# Debian/Ubuntu
-curl -fsSL https://apt.guldmund.dk/setup.sh | sudo sh
-sudo apt install restic-coverage
+# Debian/Ubuntu — one-time repo setup (signed Cloudsmith apt repo)
+sudo install -d /usr/share/keyrings
+curl -1sLf https://dl.cloudsmith.io/public/guldmund/stable/gpg.key \
+  | sudo gpg --dearmor -o /usr/share/keyrings/guldmund-stable-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/guldmund-stable-archive-keyring.gpg] https://dl.cloudsmith.io/public/guldmund/stable/deb/debian any-version main" \
+  | sudo tee /etc/apt/sources.list.d/guldmund-stable.list
+sudo apt update && sudo apt install restic-coverage
 ```
 
 ## How it works
@@ -136,4 +140,5 @@ go test ./... -race -cover
 
 Releases are tagged (`vX.Y.Z`); GoReleaser publishes the GitHub release,
 the Homebrew formula (this repo doubles as the tap), and a `.deb` that the
-`apt-repo` workflow folds into apt.guldmund.dk.
+release workflow pushes to the shared [Cloudsmith](https://cloudsmith.io) apt
+repo (`guldmund/stable`), which indexes and signs it server-side.
