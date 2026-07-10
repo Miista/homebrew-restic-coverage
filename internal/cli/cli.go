@@ -193,7 +193,7 @@ func check(o Options, out io.Writer) int {
 		if a.baseline == "git" {
 			fix = "commit to git, " + fix
 		}
-		msg := fmt.Sprintf("%d %s path(s) on disk are neither backed up, profile-excluded, nor in %s:\n%s\n-> %s",
+		msg := fmt.Sprintf("%d %s path(s) on disk are neither backed up, profile-excluded, nor in %s:\n%s\n-> %s\nnote: if you added the path to profiles.yaml but still see this, also mount it into the restic container",
 			len(rep.Violations), candidateNoun(a.baseline), ignoreFile, strings.Join(rep.Violations, "\n"), fix)
 		defer advisories(a, out)
 		return fail(o, a, out, msg)
